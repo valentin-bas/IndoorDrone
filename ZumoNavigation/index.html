@@ -1,0 +1,31 @@
+<html>
+	<head>
+		<style type="text/css">
+			textarea {
+    			vertical-align: top;
+    			height: 50%;
+    			width: 75%;
+    			resize: vertical;
+			}
+		</style>
+	</head>
+	<body>
+		Command Server Statut : COMMANDSERVERSTATUT
+		<form action="/startCmdServ" method="post">
+		    <input type="submit" value="Start">
+		</form>
+		<form action="/stopCmdServ" method="post">
+		    <input type="submit" value="Stop">
+		</form>
+		<br>
+		<br>
+		<br>
+		<br>
+		<form action="/upload" method="post" id="usrform">
+		    Arduino Code :
+		    <input type="submit" value="Upload">
+		</form>
+
+		<textarea name="code" form="usrform">SOURCECODE</textarea>
+	</body>
+</html>
