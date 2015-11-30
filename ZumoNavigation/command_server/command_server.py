@@ -60,7 +60,7 @@ class CommandSocket():
 #Function for handling connections. This will be used to create threads
 def clientthread(conn, cmdserial):
 	#Sending message to connected client
-	conn.send('Command Server Connection\r\n\r\n') #send only takes string
+	#conn.send('Command Server Connection\r\n\r\n') #send only takes string
  
 	data = conn.recv(1024)
 	if not data:
@@ -78,8 +78,8 @@ def clientthread(conn, cmdserial):
 			else:
 				cmdserial.writequeue.put(command)
 			data = data[pos+1:]
-        		reply = 'Command : ' + command + "\r\n"
-        		conn.sendall(reply)
+        		#reply = 'Command : ' + command + "\r\n"
+        		#conn.sendall(reply)
 		if running:
         		#Receiving from serial
 			try:
@@ -87,7 +87,7 @@ def clientthread(conn, cmdserial):
 			except Queue.Empty:
 				pass
 			else:
-        			conn.sendall('Reply : ' + serreply + "\r\n")
+        			conn.sendall(serreply + "\r\n")
         		#Receiving from client
         		tmpdata = conn.recv(1024)
         		if not tmpdata: 

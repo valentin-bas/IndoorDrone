@@ -49,6 +49,7 @@ void loop()
               unsigned int testLimit = Command.substring(1).toInt();
               if (batteryVoltage > testLimit)
                   digitalWrite(13, LOW);
+              Serial.print("b");
               Serial.println(batteryVoltage);
               //Serial.println("Hello");
           }
