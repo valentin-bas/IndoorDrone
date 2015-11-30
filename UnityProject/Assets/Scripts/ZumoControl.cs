@@ -4,53 +4,63 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System;
+using System.Collections.Generic;
 
 public class ZumoControl : MonoBehaviour
 {
+
+
+    public string IpAddr = "192.168.1.27";
+
+    public float DelayBetweenMotortUpdates = 0.03f;
     public UnityEngine.UI.Text rightMotorText;
     public UnityEngine.UI.Text leftMotorText;
-
-    public float DelayBetweenNetUpdate = 0.1f;
-
-    private SynchronousSocketClient _client;
-    private float _netUpdateTimer = 0.0f;
-
+    private float _motorUpdateTimer = 0.0f;
     private int _leftSpeed;
     private int _rightSpeed;
 
+    public float DelayBetweenBatteryUpdates = 10.0f;
+    public UnityEngine.UI.Text batteryVoltageText;
+    private float _batteryUpdateTimer = 0.0f;
+    private int _batteryVoltage;
+
+    private AsyncSocketClient _client;
+
+
     // Use this for initialization
-    void Start ()
+    void Start()
     {
-        _client = new SynchronousSocketClient();
-        _client.StartClient();
+        _client = new AsyncSocketClient();
+        _client.StartClient(IpAddr);
         _leftSpeed = 0;
         _rightSpeed = 0;
     }
-	
-	// Update is called once per frame
-	void Update ()
+
+    // Update is called once per frame
+    void Update()
     {
-        float h = Input.GetAxis("Horizontal");
-        float v = Input.GetAxis("Vertical");
-
-        int leftspeed = (int)(v * 400.0f + h * 400.0f);
-        int rightspeed = (int)(v * 400.0f + -h * 400.0f);
-
-        bool changed = _leftSpeed != leftspeed && _rightSpeed != rightspeed;
-
-        _netUpdateTimer += Time.deltaTime;
-        if (_netUpdateTimer > DelayBetweenNetUpdate)
+        _motorUpdateTimer += Time.deltaTime;
+        if (_motorUpdateTimer > DelayBetweenMotortUpdates)
         {
-            if (changed)
+            _SendMotorsUpdate();
+            _motorUpdateTimer = 0.0f;
+        }
+        _batteryUpdateTimer += Time.deltaTime;
+        if (_batteryUpdateTimer > DelayBetweenBatteryUpdates)
+        {
+            _SendBatteryUpdate();
+            _batteryUpdateTimer = 0.0f;
+        }
+        lock(_client.PacketBuffer)
+        {
+            if (_client.PacketBuffer.Count > 0)
             {
-                leftMotorText.text = "LeftMotor : " + leftspeed;
-                rightMotorText.text = "RightMotor : " + rightspeed;
-                if (_client.Connected)
-                    _client.Send(leftspeed, rightspeed);
-                _leftSpeed = leftspeed;
-                _rightSpeed = rightspeed;
+                AsyncSocketClient.Packet packet = _client.PacketBuffer.Dequeue();
+                if (packet.id == 'b')
+                    batteryVoltageText.text = "Battery Voltage : " + packet.args;
+                else
+                    Debug.Log("Unknown packet " + packet.id + " - " + packet.args);
             }
-            _netUpdateTimer = 0.0f;
         }
     }
 
@@ -58,89 +68,129 @@ public class ZumoControl : MonoBehaviour
     {
         _client.StopClient();
     }
-}
 
-public class SynchronousSocketClient
-{
-    Socket _socket = null;
-
-    public bool Connected = false;
-
-    public void StartClient()
+    private void _SendMotorsUpdate()
     {
-        // Data buffer for incoming data.
-        byte[] bytes = new byte[1024];
+        float h = Input.GetAxis("Horizontal");
+        float v = Input.GetAxis("Vertical");
+        int leftspeed = (int)(v * 400.0f + h * 400.0f);
+        int rightspeed = (int)(v * 400.0f + -h * 400.0f);
+        bool changed = _leftSpeed != leftspeed && _rightSpeed != rightspeed;
 
-        // Connect to a remote device.
-        try
+        if (changed)
         {
-            // Establish the remote endpoint for the socket.
-            // This example uses port 11000 on the local computer.
-            IPHostEntry ipHostInfo = Dns.Resolve("192.168.1.20");
-            IPAddress ipAddress = ipHostInfo.AddressList[0];
-            IPEndPoint remoteEP = new IPEndPoint(ipAddress, 1338);
+            leftMotorText.text = "LeftMotor : " + leftspeed;
+            rightMotorText.text = "RightMotor : " + rightspeed;
+            if (_client.Connected)
+            {
+                byte[] data = Encoding.ASCII.GetBytes("l" + leftspeed.ToString() +
+                                                     "\nr" + rightspeed.ToString() + "\n");
+                _client.Send(data);
+            }
+            _leftSpeed = leftspeed;
+            _rightSpeed = rightspeed;
+        }
+    }
 
-            // Create a TCP/IP  socket.
-            _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+    private void _SendBatteryUpdate()
+    {
+        byte[] data = Encoding.ASCII.GetBytes("b\n");
+        _client.Send(data);
+    }
 
-            // Connect the socket to the remote endpoint. Catch any errors.
+  
+    public class AsyncSocketClient
+    {
+        public class Packet
+        {
+            public char id;
+            public string args;
+        }
+
+        public bool Connected = false;
+
+        public Queue<Packet> PacketBuffer;
+
+        private Socket _socket = null;
+        private byte[] _receiveBuffer = new byte[1024];
+        private string _receiveBufferStr;
+
+        public void StartClient(string ip)
+        {
+            // Connect to a remote device.
             try
             {
+                // Establish the remote endpoint for the socket.
+                // This example uses port 11000 on the local computer.
+                IPHostEntry ipHostInfo = Dns.GetHostEntry(ip);
+                IPAddress ipAddress = ipHostInfo.AddressList[0];
+                IPEndPoint remoteEP = new IPEndPoint(ipAddress, 1338);
+
+                // Create a TCP/IP  socket.
+                _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+
+                // Connect the socket to the remote endpoint. Catch any errors.
                 _socket.Connect(remoteEP);
                 Debug.Log("Socket connected to " + _socket.RemoteEndPoint.ToString());
+                PacketBuffer = new Queue<Packet>();
                 Connected = true;
+                _socket.BeginReceive(_receiveBuffer, 0, _receiveBuffer.Length, SocketFlags.None,
+                                     new AsyncCallback(ReceiveCallback), null);
             }
-            catch (ArgumentNullException ane)
+            catch (Exception e)
             {
-                Debug.Log("ArgumentNullException : " + ane.ToString());
+                Debug.Log(e.ToString());
+            }
+        }
+
+        public void StopClient()
+        {
+            // Release the socket.
+            _socket.Shutdown(SocketShutdown.Both);
+            _socket.Close();
+        }
+
+        public bool Send(byte[] data)
+        {
+            try
+            {
+                // Send the data through the socket.
+                SocketAsyncEventArgs socketAsyncData = new SocketAsyncEventArgs();
+                socketAsyncData.SetBuffer(data, 0, data.Length);
+                _socket.SendAsync(socketAsyncData);
             }
             catch (SocketException se)
             {
                 Debug.Log("SocketException : " + se.ToString());
+                return false;
             }
-            catch (Exception e)
+            return true;
+        }
+
+        private void ReceiveCallback(IAsyncResult AR)
+        {
+            //Check how much bytes are recieved and call EndRecieve to finalize handshake
+            int recieved = _socket.EndReceive(AR);
+            if (recieved <= 0)
+                return;
+            _receiveBufferStr += Encoding.ASCII.GetString(_receiveBuffer, 0, recieved);
+            int indexEnd =_receiveBufferStr.IndexOf("\r\n");
+            while (indexEnd != -1)
             {
-                Debug.Log("Unexpected exception : " + e.ToString());
+                Packet packet = new Packet();
+                packet.id = _receiveBufferStr[0];
+                packet.args = _receiveBufferStr.Substring(1, indexEnd - 1);
+                _receiveBufferStr = _receiveBufferStr.Substring(indexEnd + 2);
+                lock (PacketBuffer)
+                {
+                    PacketBuffer.Enqueue(packet);
+                }
+                if (string.IsNullOrEmpty(_receiveBufferStr))
+                    break;
+                indexEnd = _receiveBufferStr.IndexOf("\r\n");
             }
-
+            _socket.BeginReceive(_receiveBuffer, 0, _receiveBuffer.Length, SocketFlags.None,
+                                 new AsyncCallback(ReceiveCallback), null);
         }
-        catch (Exception e)
-        {
-            Debug.Log(e.ToString());
-        }
-    }
-
-    public void StopClient()
-    {
-        // Release the socket.
-        _socket.Shutdown(SocketShutdown.Both);
-        _socket.Close();
-    }
-
-    public bool Send(int leftMotorSpeed, int rightMotorSpeed)
-    {
-        try
-        {
-            // Encode the data string into a byte array.
-            byte[] msg = Encoding.ASCII.GetBytes("l" + leftMotorSpeed.ToString() +
-                                                 "\nr" + rightMotorSpeed.ToString() + "\n");
-
-            // Send the data through the socket.
-            int bytesSent = _socket.Send(msg);
-        }
-        catch (SocketException se)
-        {
-            Debug.Log("SocketException : " + se.ToString());
-            return false;
-        }
-        return true;
-    }
-
-    public void Receive()
-    {
-        // Receive the response from the remote device.
-        //int bytesRec = _socket.Receive(bytes);
-        //Console.WriteLine("Echoed test = {0}",
-        //    Encoding.ASCII.GetString(bytes, 0, bytesRec));
     }
 }
