@@ -43,6 +43,15 @@ void loop()
 		digitalWrite(13, LOW);
 		motors.setRightSpeed(speed);
 	  }
+          else if (Command.startsWith("b"))
+	  {
+              unsigned int batteryVoltage = analogRead(1) * 5000L * 3/2 / 1023;
+              unsigned int testLimit = Command.substring(1).toInt();
+              if (batteryVoltage > testLimit)
+                  digitalWrite(13, LOW);
+              Serial.println(batteryVoltage);
+              //Serial.println("Hello");
+          }
 	  else
 	  {
 		digitalWrite(13, HIGH);

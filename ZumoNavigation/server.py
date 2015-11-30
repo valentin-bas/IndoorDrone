@@ -67,33 +67,41 @@ class SimpleApp:
 		
 	def __iter__(self):
 		status = '200 OK'
-		response_headers = [('Content-type','text/html')]
-		self.start(status, response_headers)
 		if self.environ['REQUEST_METHOD'] == 'POST':
+			response_headers = [('Content-type','text/html')]
 			url = request_uri(self.environ)
 			if url.endswith("/upload"):
+				self.start(status, response_headers)
 				self.postUpload()
 				yield 'Uploaded'
 			elif url.endswith("/startCmdServ"):
+				self.start(status, response_headers)
 				self.postStartCmdServer()
 				yield 'Started'
 			elif url.endswith("/stopCmdServ"):
+				self.start(status, response_headers)
 				self.postStopCmdServer()
 				yield 'Stopped'
 			else:
+				self.start(status, response_headers)
 				yield 'Unknown command'
 		else:
 			url = request_uri(self.environ)
+			response_headers = [('Content-type','text/html')]
 			if url.endswith("1337/"):
+				self.start(status, response_headers)
 				file = open(ARDUINO_PATH + "blink.ino", "r")
 				webpage = self.indexFile.replace("SOURCECODE", file.read())
 				webpage = webpage.replace("COMMANDSERVERSTATUT", getCmdServStatut())
 				file.close()
 				yield webpage
 			elif url.endswith("/log"):
+				response_headers = [('Content-type','text/plain')]
+				self.start(status, response_headers)
 				file = open("/tmp/log_nav", "r")
 				yield file.read()
 			else:
+				self.start(status, response_headers)
 				print("Trying to access : " + url)
 				yield "Nothing here"
 
