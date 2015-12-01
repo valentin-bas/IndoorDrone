@@ -18,6 +18,8 @@ public class ZumoControl : MonoBehaviour
     private float _motorUpdateTimer = 0.0f;
     private int _leftSpeed;
     private int _rightSpeed;
+    private float _oldh;
+    private float _oldv;
 
     public float DelayBetweenBatteryUpdates = 10.0f;
     public UnityEngine.UI.Text batteryVoltageText;
@@ -73,8 +75,28 @@ public class ZumoControl : MonoBehaviour
     {
         float h = Input.GetAxis("Horizontal");
         float v = Input.GetAxis("Vertical");
-        int leftspeed = (int)(v * 400.0f + h * 400.0f);
-        int rightspeed = (int)(v * 400.0f + -h * 400.0f);
+
+        float maxSpeed = 400.0f;
+
+        //snap h and v
+        //----------------------------------
+        float tmph = h;
+        float tmpv = v;
+        if (_oldh != 0.0f && Mathf.Abs(_oldh) > Mathf.Abs(h))
+            h = 0.0f;
+        else if (h != 0.0f)
+            h = h > 0.0f ? 1.0f : -1.0f;
+        if (_oldv != 0.0f && Mathf.Abs(_oldv) > Mathf.Abs(v))
+            v = 0.0f;
+        else if (v != 0.0f)
+            v = v > 0.0f ? 1.0f : -1.0f;
+        _oldh = tmph;
+        _oldv = tmpv;
+        maxSpeed = 200.0f;
+        //----------------------------------
+
+        int leftspeed = (int)(v * maxSpeed + h * maxSpeed);
+        int rightspeed = (int)(v * maxSpeed + -h * maxSpeed);
         bool changed = _leftSpeed != leftspeed && _rightSpeed != rightspeed;
 
         if (changed)
