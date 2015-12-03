@@ -1,8 +1,10 @@
 ﻿using UnityEngine;
 using System.Collections;
+using System.Text;
 
 public class Drone : MonoBehaviour
 {
+    public ZumoControl Zumo;
     public ParticleSystem System;
     public float Distance = 2.0f;
     public float left;
@@ -32,12 +34,39 @@ public class Drone : MonoBehaviour
         rigidbody = GetComponent<Rigidbody2D>();
 
         StartCoroutine(Pass());
+        StartCoroutine(S());
+    }
+
+    private int toast = 0;
+    IEnumerator S()
+    {
+        while (true)
+        {
+            //int angle = toast++;
+            //
+            //transform.rotation = Quaternion.AngleAxis(angle, -Vector3.forward);
+
+            if (Zumo._client != null && Zumo._client.Connected)
+            {
+                byte[] data = Encoding.ASCII.GetBytes("a\n");
+                Zumo._client.Send(data);
+                data = Encoding.ASCII.GetBytes("s\n");
+                Zumo._client.Send(data);
+            }
+            yield return new WaitForSeconds(0.25f);
+
+        }
     }
 
     void Update()
     {
         DoInput();
-        Sensor();
+
+        if (Input.GetKeyDown(KeyCode.LeftControl))
+        {
+            algo.Reset();
+        }
+        //Sensor();
 
         //if (Input.GetKeyDown(KeyCode.Space))
         //{
@@ -56,16 +85,19 @@ public class Drone : MonoBehaviour
     {
         while (true)
         {
-            Vector3 relMove = transform.position - oldPosition;
-            Debug.Log(relMove);
+            //if (Dirty)
+            //{
+                Vector3 relMove = transform.position - oldPosition;
 
-            algo.Filtering = Filtering;
-            algo.Mask = Mask;
-            algo.RelMove = relMove;
-            algo.ParticleCount = ParticleCount;
-            algo.Pass();
+                algo.Filtering = Filtering;
+                algo.Mask = Mask;
+                algo.RelMove = relMove;
+                algo.ParticleCount = ParticleCount;
+                algo.Pass();
 
-            oldPosition = transform.position;
+                oldPosition = transform.position;
+                Dirty = false;
+            //}
 
             yield return new WaitForSeconds(0.1f);
         }
@@ -80,7 +112,7 @@ public class Drone : MonoBehaviour
         moveDirection = transform.TransformDirection(moveDirection) * Time.deltaTime * 10.0f;
         rigidbody.velocity = moveDirection;
 
-        transform.Rotate(transform.forward * -horizontal * Time.deltaTime * 360.0f);
+        //transform.Rotate(transform.forward * -horizontal * Time.deltaTime * 360.0f);
     }
 
     private void Sensor()
@@ -126,5 +158,11 @@ public class Drone : MonoBehaviour
         {
             down = -1.0f;
         }
+
+        // override left and back
+        left = -1.0f;
+        down = -1.0f;
     }
+
+    public bool Dirty { get; set; }
 }

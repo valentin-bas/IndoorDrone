@@ -8,7 +8,8 @@ using System.Collections.Generic;
 
 public class ZumoControl : MonoBehaviour
 {
-
+    public Drone Drone;
+    public int AngleOffset = 300;
 
     public string IpAddr = "192.168.1.27";
 
@@ -26,8 +27,13 @@ public class ZumoControl : MonoBehaviour
     private float _batteryUpdateTimer = 0.0f;
     private int _batteryVoltage;
 
-    private AsyncSocketClient _client;
+    public AsyncSocketClient _client;
 
+    private float maxSpeed = 300.0f;
+    public void SetSpeed(float f)
+    {
+        maxSpeed = f;
+    }
 
     // Use this for initialization
     void Start()
@@ -58,8 +64,45 @@ public class ZumoControl : MonoBehaviour
             if (_client.PacketBuffer.Count > 0)
             {
                 AsyncSocketClient.Packet packet = _client.PacketBuffer.Dequeue();
-                if (packet.id == 'b')
-                    batteryVoltageText.text = "Battery Voltage : " + packet.args;
+
+                if (packet.id == 's')
+                {
+                    string[] tokens = packet.args.Split('-');
+                    if (tokens.Length == 2)
+                    {
+                        float front = float.Parse(tokens[0]);
+                        float right = float.Parse(tokens[1]);
+
+                        if (right != 0.0f)
+                        {
+                            Drone.right = right / 100;
+                        }
+                        if (front != 0.0f)
+                        {
+                            Drone.up = front / 100;
+                        }
+                        Drone.left = -1.0f;
+                        Drone.down = -1.0f;
+                        Drone.Dirty = true;
+
+                        Debug.DrawLine(Drone.transform.position, Drone.transform.position + Drone.transform.up * Drone.up, Color.red, 0.1f);
+                        Debug.DrawLine(Drone.transform.position, Drone.transform.position + Drone.transform.right * Drone.right, Color.red, 0.1f);
+                    }
+                }
+                else if (packet.id == 'a')
+                {
+                    int angle = int.Parse(packet.args) - AngleOffset;
+                    Debug.Log(angle);
+
+                    Drone.transform.rotation = Quaternion.AngleAxis(angle, -Vector3.forward);
+                }
+                else if (packet.id == 'b')
+                {
+                    if (batteryVoltageText != null)
+                    {
+                        batteryVoltageText.text = "Battery Voltage : " + packet.args;
+                    }
+                }
                 else
                     Debug.Log("Unknown packet " + packet.id + " - " + packet.args);
             }
@@ -76,8 +119,6 @@ public class ZumoControl : MonoBehaviour
         float h = Input.GetAxis("Horizontal");
         float v = Input.GetAxis("Vertical");
 
-        float maxSpeed = 400.0f;
-
         //snap h and v
         //----------------------------------
         float tmph = h;
@@ -92,7 +133,6 @@ public class ZumoControl : MonoBehaviour
             v = v > 0.0f ? 1.0f : -1.0f;
         _oldh = tmph;
         _oldv = tmpv;
-        maxSpeed = 200.0f;
         //----------------------------------
 
         int leftspeed = (int)(v * maxSpeed + h * maxSpeed);
@@ -101,17 +141,34 @@ public class ZumoControl : MonoBehaviour
 
         if (changed)
         {
-            leftMotorText.text = "LeftMotor : " + leftspeed;
-            rightMotorText.text = "RightMotor : " + rightspeed;
+            if (leftMotorText != null)
+            {
+                leftMotorText.text = "LeftMotor : " + leftspeed;
+            }
+            if (rightMotorText != null)
+            {
+                rightMotorText.text = "RightMotor : " + rightspeed;
+            }
             if (_client.Connected)
             {
                 byte[] data = Encoding.ASCII.GetBytes("l" + leftspeed.ToString() +
                                                      "\nr" + rightspeed.ToString() + "\n");
                 _client.Send(data);
+
+                StartCoroutine(Stop(1.0f));
             }
             _leftSpeed = leftspeed;
             _rightSpeed = rightspeed;
         }
+    }
+
+    private IEnumerator Stop(float t)
+    {
+        yield return new WaitForSeconds(t);
+
+        byte[] data = Encoding.ASCII.GetBytes("l0\nr0\n");
+        _client.Send(data);
+        enabled = false;
     }
 
     private void _SendBatteryUpdate()
