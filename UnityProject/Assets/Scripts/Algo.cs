@@ -31,6 +31,14 @@ public class Algo
     private List<ReusableParticle> reuse = new List<ReusableParticle>();
     private List<ReusableParticle> best = new List<ReusableParticle>();
 
+    public void Reset()
+    {
+        reuse = new List<ReusableParticle>();
+        best = new List<ReusableParticle>();
+        parts = null;
+        Particles.Clear();
+    }
+
     public float WGauss(float a, float b)
     {
         float error = a - b;
@@ -71,7 +79,7 @@ public class Algo
             {
                 ReusableParticle p2 = best[Random.Range(0, best.Count - 1)];
                 var v = reuse[i];
-                v.Particle.position = new Vector2(p2.Particle.position.x + Random.Range(-0.2f, 0.2f), p2.Particle.position.y + Random.Range(-0.2f, 0.2f));
+                v.Particle.position = new Vector2(p2.Particle.position.x + Random.Range(-0.05f, 0.05f), p2.Particle.position.y + Random.Range(-0.05f, 0.05f));
                 reuse[i] = v;
                 r.Add(reuse[i].Particle);
             }
@@ -94,7 +102,6 @@ public class Algo
             var arr1 = b.ToArray();
             var arr2 = r.ToArray();
             ParticleSystem.Particle[] newParts = new ParticleSystem.Particle[Particles.maxParticles];
-            Debug.Log(arr1.Length + " " + arr2.Length + " " + newParts.Length);
             System.Array.Copy(arr1, 0, newParts, 0, arr1.Length);
             System.Array.Copy(arr2, 0, newParts, arr1.Length, arr2.Length);
 
@@ -118,14 +125,13 @@ public class Algo
         ParticleSystem.Particle[] particles = new ParticleSystem.Particle[Particles.maxParticles];
         int amount = Particles.GetParticles(particles);
         parts = new Part[amount];
-        Debug.Log(amount);
 
         float avg = 0.0f;
         for (int i = 0; i < amount; ++i)
         {
             Part part = new Part();
             part.P = particles[i];
-            particles[i].position += RelMove;
+            //particles[i].position += RelMove;
 
             RaycastHit2D hit;
             hit = Physics2D.Raycast(part.P.position, drone.transform.right, Mask);
